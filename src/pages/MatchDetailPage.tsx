@@ -49,6 +49,78 @@ interface DamageBarItem {
   value: number
 }
 
+interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  text: string
+}
+
+const ROLE_FALLBACK_ARCHETYPE: Record<string, string> = {
+  top: 'frontline or side-lane pressure',
+  jungle: 'engage setup and objective control',
+  mid: 'burst and mid-game skirmish control',
+  middle: 'burst and mid-game skirmish control',
+  bottom: 'sustained teamfight DPS',
+  adc: 'sustained teamfight DPS',
+  support: 'engage, peel, and vision control',
+  utility: 'engage, peel, and vision control',
+}
+
+const CHAMPION_ARCHETYPE_HINT: Record<string, string> = {
+  Ambessa: 'bruiser dive and skirmish pressure',
+  Ahri: 'pick potential and mobile burst',
+  Alistar: 'hard engage and frontline peel',
+  Amumu: 'AoE engage wombo setup',
+  Ashe: 'long-range engage and utility DPS',
+  Azir: 'front-to-back teamfight DPS and zone control',
+  Braum: 'peel and anti-dive protection',
+  Camille: 'single-target dive and flank threat',
+  Corki: 'poke-heavy siege and objective pressure',
+  Draven: 'lane snowball and early skirmish damage',
+  Ezreal: 'safe poke and kiting',
+  Gnar: 'teamfight engage and lane pressure',
+  Gragas: 'disengage or pick setup through barrels',
+  Gwen: 'AP side-lane and anti-frontline damage',
+  Jax: 'split-push and backline dive threat',
+  Jayce: 'poke siege and lane control',
+  Jhin: 'pick follow-up and long-range utility',
+  Jinx: 'reset-based front-to-back carry DPS',
+  Kaisa: 'dive follow-up and mixed burst DPS',
+  Kalista: 'objective control and skirmish aggression',
+  Kennen: 'AoE flank engage and wombo threat',
+  KogMaw: 'hypercarry front-to-back scaling',
+  LeBlanc: 'pick burst and side pressure',
+  LeeSin: 'early tempo ganks and playmaking',
+  Leona: 'hard engage and teamfight setup',
+  Lillia: 'AoE sleep setup and scaling AP damage',
+  Lucian: 'lane pressure and mid-game skirmish burst',
+  Lulu: 'enchanter peel enabling hypercarries',
+  Maokai: 'vision control and reliable engage',
+  MissFortune: 'teamfight AoE DPS with setup',
+  Nautilus: 'point-and-click engage chain',
+  Nocturne: 'backline dive and map pressure',
+  Orianna: 'teamfight control and wombo combo setup',
+  Poppy: 'anti-dive control and engage denial',
+  Rakan: 'fast engage and teamfight disruption',
+  Rell: 'AoE engage and lockdown',
+  Renekton: 'early lane control and dive assist',
+  Rumble: 'AoE zone control in objectives',
+  Sejuani: 'frontline engage and melee synergy',
+  Senna: 'scaling utility carry and poke',
+  Smolder: 'late-game scaling dragon DPS',
+  Sylas: 'skirmish burst and flexible engage',
+  Syndra: 'pick burst and zone control',
+  TahmKench: 'frontline peel and carry protection',
+  Tristana: 'siege DPS and explosive skirmish power',
+  TwistedFate: 'global pick setup and map play',
+  Vi: 'targeted backline engage',
+  Viego: 'reset skirmisher and follow-up dive',
+  Wukong: 'teamfight engage and AoE disruption',
+  Xayah: 'self-peel DPS in front-to-back fights',
+  XinZhao: 'early skirmish control and engage',
+  Zeri: 'extended teamfight kiting and scaling',
+}
+
 function buildRows(meta: GameMetadata, parts: DetailParticipant[]): Row[] {
   const metaById = new Map<number, ParticipantMeta>()
   const blueM = meta.blueTeamMetadata?.participantMetadata ?? []
@@ -76,6 +148,98 @@ function buildRows(meta: GameMetadata, parts: DetailParticipant[]): Row[] {
   return rows
 }
 
+function summarizeTeamComp(rows: Row[], side: 'blue' | 'red', teamCode: string): string {
+  const teamRows = rows.filter((row) => row.side === side)
+  if (teamRows.length === 0) return `${teamCode}: no player data available for composition analysis.`
+
+  const champsWithRoles = teamRows.map((row) => {
+    const role = row.role ? row.role.toLowerCase() : ''
+    const roleHint = ROLE_FALLBACK_ARCHETYPE[role] ?? 'teamfight utility'
+    const champHint = CHAMPION_ARCHETYPE_HINT[row.championId] ?? roleHint
+    return `${row.championId} (${row.role || 'flex'}: ${champHint})`
+  })
+
+  const topDamage = [...teamRows].sort((a, b) => b.championDamageShare - a.championDamageShare)[0]
+  const topDamageShare = Math.round((topDamage?.championDamageShare ?? 0) * 100)
+
+  const hasStrongEngage = teamRows.some((row) =>
+    ['Alistar', 'Leona', 'Rakan', 'Rell', 'Nautilus', 'Wukong', 'Sejuani', 'Vi', 'Maokai'].includes(
+      row.championId,
+    ),
+  )
+  const hasPokeCore = teamRows.some((row) =>
+    ['Jayce', 'Ezreal', 'Corki', 'Varus', 'Ashe'].includes(row.championId),
+  )
+  const hasHyperCarry = teamRows.some((row) =>
+    ['Jinx', 'Zeri', 'KogMaw', 'Smolder', 'Aphelios', 'Xayah'].includes(row.championId),
+  )
+
+  const style = hasStrongEngage
+    ? 'This draft prefers engage windows and coordinated front-to-back teamfights.'
+    : hasPokeCore
+      ? 'This draft prefers poke, objective setup, and chipping opponents before full commit.'
+      : 'This draft has a mixed style and can pivot between skirmish picks and standard 5v5s.'
+
+  const scalingNote = hasHyperCarry
+    ? 'It has a clear late-game carry angle if the frontline and support can protect DPS uptime.'
+    : 'Its power is less single-carry focused and more about coordinated spell layering.'
+
+  return `${teamCode}: ${champsWithRoles.join(', ')}. Primary damage source is ${
+    topDamage?.championId ?? 'N/A'
+  } (~${topDamageShare}% team damage share). ${style} ${scalingNote}`
+}
+
+function buildTeamCompExplanation(rows: Row[], blueCode: string, redCode: string): string {
+  const blueSummary = summarizeTeamComp(rows, 'blue', blueCode)
+  const redSummary = summarizeTeamComp(rows, 'red', redCode)
+  return [
+    'Here is a quick draft read with League of Legends teamfight context:',
+    blueSummary,
+    redSummary,
+    'Win condition read: look at who has cleaner engage tools and whether the main carry can hit safely in front-to-back fights. If one side has stronger poke, they should play for setup before dragon/baron starts.',
+  ].join('\n\n')
+}
+
+function buildQuestionAnswer(
+  question: string,
+  rows: Row[] | null,
+  blueCode?: string,
+  redCode?: string,
+): string {
+  const q = question.toLowerCase()
+  if (!rows || !blueCode || !redCode) {
+    return 'I need completed game stats first. Open a completed game tab so I can analyze draft, damage, and player performance.'
+  }
+
+  const teamComp = buildTeamCompExplanation(rows, blueCode, redCode)
+
+  if (q.includes('comp') || q.includes('draft') || q.includes('champion')) {
+    return teamComp
+  }
+
+  if (q.includes('damage') || q.includes('carry') || q.includes('dps')) {
+    const sorted = [...rows].sort((a, b) => b.championDamageShare - a.championDamageShare).slice(0, 3)
+    const lines = sorted.map(
+      (r) =>
+        `${r.summonerName} (${r.championId}, ${r.side}) contributes about ${(r.championDamageShare * 100).toFixed(1)}% team damage share.`,
+    )
+    return `Top damage threats in this game:\n\n${lines.join('\n')}\n\nUse this to identify who must be protected (or focused) in late fights.`
+  }
+
+  if (q.includes('win condition') || q.includes('how to win') || q.includes('strategy')) {
+    return `${teamComp}\n\nMacro tip: play around objective timers where your comp is strongest (engage windows for dive comps, setup time for poke comps, and peel spacing for hypercarry comps).`
+  }
+
+  if (q.includes('lane') || q.includes('matchup') || q.includes('early game')) {
+    const lanes = rows
+      .map((r) => `${r.side === 'blue' ? blueCode : redCode} ${r.role || 'flex'}: ${r.championId}`)
+      .join(', ')
+    return `Lane-oriented read from champions played:\n\n${lanes}\n\nEarly game priority usually comes from jungle-mid support coordination and lane prio around first drake/herald setups.`
+  }
+
+  return `${teamComp}\n\nI can also answer focused questions about damage threats, win conditions, lane pressure, or teamfight execution for this game.`
+}
+
 export function MatchDetailPage() {
   const { matchId } = useParams<{ matchId: string }>()
   const [searchParams] = useSearchParams()
@@ -93,6 +257,8 @@ export function MatchDetailPage() {
   const [statsErr, setStatsErr] = useState<string | null>(null)
   const [rows, setRows] = useState<Row[] | null>(null)
   const [patch, setPatch] = useState<string>('15.1.1')
+  const [questionInput, setQuestionInput] = useState('')
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const statsSeq = useRef(0)
 
   useEffect(() => {
@@ -224,6 +390,22 @@ export function MatchDetailPage() {
     }
     return archiveLinksFromGames(eventData.match.games)
   }, [eventData, stateFromUrl])
+
+  function handleAskAssistant() {
+    const question = questionInput.trim()
+    if (!question) return
+    const baseId = `${Date.now()}`
+    const userMessage: ChatMessage = { id: `${baseId}-u`, role: 'user', text: question }
+    const answer = buildQuestionAnswer(
+      question,
+      rows,
+      activeSideTeams?.blue?.code,
+      activeSideTeams?.red?.code,
+    )
+    const assistantMessage: ChatMessage = { id: `${baseId}-a`, role: 'assistant', text: answer }
+    setChatMessages((prev) => [...prev, userMessage, assistantMessage])
+    setQuestionInput('')
+  }
 
   if (eventLoading) {
     return (
@@ -429,6 +611,45 @@ export function MatchDetailPage() {
         Stats from{' '}
         <code>feed.lolesports.com</code> when available. Not affiliated with Riot Games.
       </footer>
+
+      <section className="match-assistant" aria-label="AI assistant">
+        <h2>AI Assistant</h2>
+        <p className="match-assistant__hint">
+          Ask for tactical explanation based on current game draft and player statistics.
+        </p>
+        <div className="match-assistant__controls">
+          <input
+            type="text"
+            value={questionInput}
+            onChange={(event) => setQuestionInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') handleAskAssistant()
+            }}
+            placeholder="Ask a game-related question (e.g. How do these comps win teamfights?)"
+            aria-label="Assistant question input"
+          />
+          <button type="button" onClick={handleAskAssistant}>
+            Ask
+          </button>
+        </div>
+        <div className="match-assistant__chatlog" role="log" aria-live="polite">
+          {chatMessages.length === 0 ? (
+            <p className="match-assistant__empty">
+              Select a prompt and click Ask to get an explanation.
+            </p>
+          ) : (
+            chatMessages.map((message) => (
+              <article
+                key={message.id}
+                className={`match-assistant__msg match-assistant__msg--${message.role}`}
+              >
+                <h3>{message.role === 'user' ? 'You' : 'Assistant'}</h3>
+                <p>{message.text}</p>
+              </article>
+            ))
+          )}
+        </div>
+      </section>
     </div>
   )
 }

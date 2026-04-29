@@ -1,6 +1,7 @@
 import type { League, ScheduleEvent, SchedulePages } from '../types'
+import { API_BASE_URL } from './config'
 
-const BASE = '/api/esports'
+const BASE = `${API_BASE_URL}/api/esports`
 
 function toHttps(url: string): string {
   if (url.startsWith('http://')) return 'https://' + url.slice(7)

@@ -1,4 +1,6 @@
-const BASE = '/api/livestats'
+import { API_BASE_URL } from './config'
+
+const BASE = `${API_BASE_URL}/api/livestats`
 
 export interface ParticipantMeta {
   participantId: number
