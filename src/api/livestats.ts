@@ -1,6 +1,5 @@
-import { API_BASE_URL } from './config'
-
-const BASE = `${API_BASE_URL}/api/livestats`
+// Call external API directly instead of through proxy
+const BASE = 'https://feed.lolesports.com/livestats/v1'
 
 export interface ParticipantMeta {
   participantId: number

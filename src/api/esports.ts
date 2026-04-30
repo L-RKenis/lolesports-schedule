@@ -1,7 +1,8 @@
 import type { League, ScheduleEvent, SchedulePages } from '../types'
-import { API_BASE_URL } from './config'
 
-const BASE = `${API_BASE_URL}/api/esports`
+// Call external API directly instead of through proxy
+const ESPORTS_API_KEY = '0TvQnueqKa5mxJntVWt0w4LpLfEkrV1Ta8rQBb9Z'
+const BASE = 'https://esports-api.lolesports.com/persisted/gw'
 
 function toHttps(url: string): string {
   if (url.startsWith('http://')) return 'https://' + url.slice(7)
@@ -20,7 +21,11 @@ async function parseJson<T>(res: Response): Promise<T> {
 export async function fetchLeagues(locale = 'en-US'): Promise<League[]> {
   const q = new URLSearchParams({ hl: locale })
   const endpoint = `${BASE}/getLeagues?${q}`
-  const res = await fetch(endpoint)
+  const res = await fetch(endpoint, {
+    headers: {
+      'x-api-key': ESPORTS_API_KEY,
+    },
+  })
   if (!res.ok) throw new Error(`getLeagues failed: ${res.status}`)
   const json = await parseJson<{ data?: { leagues?: League[] } }>(res)
   const list = json?.data?.leagues ?? []
@@ -43,7 +48,11 @@ export async function fetchSchedule(
   const q = new URLSearchParams({ hl: locale })
   if (pageToken) q.set('pageToken', pageToken)
   const endpoint = `${BASE}/getSchedule?${q}`
-  const res = await fetch(endpoint)
+  const res = await fetch(endpoint, {
+    headers: {
+      'x-api-key': ESPORTS_API_KEY,
+    },
+  })
   if (!res.ok) throw new Error(`getSchedule failed: ${res.status}`)
   const json = await parseJson<{ data?: { schedule?: ScheduleResult } }>(res)
   const sch = json?.data?.schedule
@@ -111,7 +120,11 @@ export async function fetchMatchEventDetails(
 ): Promise<MatchEventDetails> {
   const q = new URLSearchParams({ hl: locale, id: matchId })
   const endpoint = `${BASE}/getEventDetails?${q}`
-  const res = await fetch(endpoint)
+  const res = await fetch(endpoint, {
+    headers: {
+      'x-api-key': ESPORTS_API_KEY,
+    },
+  })
   if (!res.ok) throw new Error(`getEventDetails failed: ${res.status}`)
   const json = await parseJson<{ data?: { event?: MatchEventDetails } }>(res)
   const ev = json?.data?.event
