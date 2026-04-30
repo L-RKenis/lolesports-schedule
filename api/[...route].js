@@ -20,10 +20,10 @@ export default async function handler(req, res) {
   }
 
   // Extract the API path from req.url
-  // req.url will be something like /api/esports/getLeagues?hl=en-US
+  // In Vercel catch-all routes, req.url will be like /esports/getLeagues?hl=en-US (without /api/ prefix)
   const url = req.url || ''
-  const isEsportsRequest = url.startsWith('/api/esports')
-  const isLivestatsRequest = url.startsWith('/api/livestats')
+  const isEsportsRequest = url.startsWith('/esports')
+  const isLivestatsRequest = url.startsWith('/livestats')
 
   if (!isEsportsRequest && !isLivestatsRequest) {
     return res.status(404).json({ error: 'Not Found' })
@@ -34,13 +34,13 @@ export default async function handler(req, res) {
     let headers = { 'Content-Type': 'application/json' }
 
     if (isEsportsRequest) {
-      // Remove /api/esports prefix and build target URL
-      const path = url.replace(/^\/api\/esports/, '')
+      // Remove /esports prefix and build target URL
+      const path = url.replace(/^\/esports/, '')
       targetUrl = `${ESPORTS_TARGET}${path}`
       headers['x-api-key'] = ESPORTS_API_KEY
     } else {
-      // Remove /api/livestats prefix and build target URL
-      const path = url.replace(/^\/api\/livestats/, '')
+      // Remove /livestats prefix and build target URL
+      const path = url.replace(/^\/livestats/, '')
       targetUrl = `${LIVESTATS_TARGET}${path}`
     }
 
